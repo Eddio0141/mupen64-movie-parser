@@ -39,9 +39,9 @@ pub struct M64 {
 impl M64 {
     pub fn from_u8_array(data: &[u8]) -> Result<Self, M64ParseError> {
         let signature = tag::<_, _, nom::error::Error<_>>([0x4D, 0x36, 0x34, 0x1A]);
-        let movie_start_type = map_res(le_u16, |b| MovieStartType::try_from(b));
+        let movie_start_type = map_res(le_u16, MovieStartType::try_from);
         let controller_flags = map_opt(le_u32, |b| Some(Flags::from_u32(b)));
-        let array_string = |n: usize| map_res(take(n), |s: &[u8]| std::str::from_utf8(s));
+        let array_string = |n: usize| map_res(take(n), std::str::from_utf8);
         let array_string_64 = || {
             map_res::<_, _, _, _, Utf8Error, _, _>(take(64usize), |s: &[u8]| {
                 let s = std::str::from_utf8(s)?;

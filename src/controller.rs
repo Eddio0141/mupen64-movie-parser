@@ -15,10 +15,10 @@ impl Flags {
             has_rumblepak: false,
         }; 4];
 
-        for i in 0..4 {
-            flags[i].controller_present = nth_bit(value, i);
-            flags[i].has_mempak = nth_bit(value, i + 4);
-            flags[i].has_rumblepak = nth_bit(value, i + 8);
+        for (i, flag) in flags.iter_mut().enumerate() {
+            flag.controller_present = nth_bit(value, i);
+            flag.has_mempak = nth_bit(value, i + 4);
+            flag.has_rumblepak = nth_bit(value, i + 8);
         }
 
         flags

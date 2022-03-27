@@ -8,7 +8,7 @@ pub struct M64 {
     pub input_frame_count: u64,
     pub rerecord_count: u64,
     pub fps: u8,
-    pub number_of_controllers: u8,
+    pub controller_count: u8,
     pub movie_start_type: MovieStartType,
     pub controller_flags: [Flags; 4],
     pub rom_internal_name: ArrayString<32>,

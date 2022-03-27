@@ -51,3 +51,65 @@ pub struct Input {
     pub x_axis: i8,
     pub y_axis: i8,
 }
+
+impl From<u32> for Input {
+    // big endian
+    fn from(mut value: u32) -> Self {
+        let right_dpad = value & 0x01 != 0;
+        value = value.shr(1);
+        let left_dpad = value & 0x01 != 0;
+        value = value.shr(1);
+        let down_dpad = value & 0x01 != 0;
+        value = value.shr(1);
+        let up_dpad = value & 0x01 != 0;
+        value = value.shr(1);
+        let start = value & 0x01 != 0;
+        value = value.shr(1);
+        let z_button = value & 0x01 != 0;
+        value = value.shr(1);
+        let b_button = value & 0x01 != 0;
+        value = value.shr(1);
+        let a_button = value & 0x01 != 0;
+        value = value.shr(1);
+        let right_cbutton = value & 0x01 != 0;
+        value = value.shr(1);
+        let left_cbutton = value & 0x01 != 0;
+        value = value.shr(1);
+        let down_cbutton = value & 0x01 != 0;
+        value = value.shr(1);
+        let up_cbutton = value & 0x01 != 0;
+        value = value.shr(1);
+        let right_shoulder = value & 0x01 != 0;
+        value = value.shr(1);
+        let left_shoulder = value & 0x01 != 0;
+        value = value.shr(1);
+        let reserved_1 = value & 0x01 != 0;
+        value = value.shr(1);
+        let reserved_2 = value & 0x01 != 0;
+        value = value.shr(1);
+        let x_axis = (value & 0xFF) as i8;
+        value = value.shr(8);
+        let y_axis = value as i8;
+
+        Input {
+            up_dpad,
+            down_dpad,
+            left_dpad,
+            right_dpad,
+            start,
+            z_button,
+            a_button,
+            b_button,
+            right_shoulder,
+            left_shoulder,
+            up_cbutton,
+            down_cbutton,
+            left_cbutton,
+            right_cbutton,
+            reserved_1,
+            reserved_2,
+            x_axis,
+            y_axis,
+        }
+    }
+}

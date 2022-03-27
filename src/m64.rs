@@ -3,9 +3,9 @@ use std::str::Utf8Error;
 use arrayvec::ArrayString;
 use nom::{
     bytes::complete::{tag, take},
-    character::complete::u8,
     combinator::{map_opt, map_res},
-    number::complete::{le_u16, le_u32},
+    multi::many0,
+    number::complete::{le_u16, le_u32, u8},
     sequence::tuple,
     Parser,
 };
@@ -39,7 +39,7 @@ pub struct M64 {
 impl M64 {
     pub fn from_u8_array(data: &[u8]) -> Result<Self, M64ParseError> {
         let signature = tag::<_, _, nom::error::Error<_>>([0x4D, 0x36, 0x34, 0x1A]);
-        let movie_start_type = map_res(u8, |b| MovieStartType::try_from(b));
+        let movie_start_type = map_res(le_u16, |b| MovieStartType::try_from(b));
         let controller_flags = map_opt(le_u32, |b| Some(Flags::from_u32(b)));
         let array_string = |n: usize| map_res(take(n), |s: &[u8]| std::str::from_utf8(s));
         let array_string_64 = || {
@@ -48,9 +48,11 @@ impl M64 {
                 Ok(ArrayString::<64>::from(s).unwrap())
             })
         };
+        let input =
+            map_opt::<_, _, _, nom::error::Error<_>, _, _>(le_u32, |i: u32| Some(Input::from(i)));
 
         // TODO more errors
-        let (data, (signature, version_number)) = tuple((signature, le_u32))(data).unwrap();
+        let (data, (_, version_number)) = tuple((signature, le_u32))(data).unwrap();
 
         // version number check
         if version_number != 3 {
@@ -68,6 +70,11 @@ impl M64 {
             ))(data)
             .unwrap();
 
+        println!(
+            "uid: {}, vi_frame_count: {}, rerecord_count: {}, fps: {}, controller_count: {}",
+            uid, vi_frame_count, rerecord_count, fps, controller_count
+        );
+
         // reserved should be 0
         // TODO does this need to be checked?
         if reserved != [0, 0] {
@@ -84,6 +91,11 @@ impl M64 {
         ))(data)
         .unwrap();
 
+        println!(
+            "input_frame_count: {}, movie_start_type: {:?}",
+            input_frame_count, movie_start_type
+        );
+
         // reserved should be 0
         // TODO does this need to be checked?
         if reserved != [0, 0] {
@@ -98,6 +110,8 @@ impl M64 {
             take::<_, _, nom::error::Error<_>>(160usize),
         ))(data)
         .unwrap();
+
+        println!("controller_flags: {:?}", controller_flags);
 
         // reserved should be 0
         // TODO does this need to be checked?
@@ -115,6 +129,11 @@ impl M64 {
             take::<_, _, nom::error::Error<_>>(56usize),
         ))(data)
         .unwrap();
+
+        println!(
+            "rom_internal_name: {}, rom_crc_32: {}, rom_country_code: {}",
+            rom_internal_name, rom_crc_32, rom_country_code
+        );
 
         // reserved should be 0
         // TODO does this need to be checked?
@@ -136,8 +155,34 @@ impl M64 {
             ))(data)
             .unwrap();
 
-        println!("{:?}", signature);
-        todo!("{:#?}", data)
+        println!("video_plugin: {}, audio_plugin: {}, input_plugin: {}, rsp_plugin: {}, author: {}, description, {}", video_plugin, audio_plugin, input_plugin, rsp_plugin, author, description);
+
+        let (data, inputs): (&[u8], _) = many0(input)(data).unwrap();
+
+        if !data.is_empty() {
+            return Err(M64ParseError::InvalidRemainingInputData(data.len()));
+        }
+
+        Ok(M64 {
+            uid,
+            vi_frame_count,
+            rerecord_count,
+            fps,
+            controller_count,
+            input_frame_count,
+            movie_start_type,
+            controller_flags,
+            rom_internal_name,
+            rom_crc_32,
+            rom_country_code,
+            video_plugin,
+            audio_plugin,
+            input_plugin,
+            rsp_plugin,
+            author,
+            description,
+            inputs,
+        })
     }
 }
 
@@ -147,26 +192,28 @@ pub enum M64ParseError {
     InvalidVersionNumber(u32),
     #[error("Expected reserved variables to be 0, at offset {offset:#X} for {length} bytes")]
     InvalidReserved { offset: usize, length: usize },
+    #[error("Invalid remaining input data: {0} bytes, must be 4 bytes aligned")]
+    InvalidRemainingInputData(usize),
 }
 
-#[derive(FromRepr)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, FromRepr)]
 pub enum MovieStartType {
     SnapShot = 1,
     PowerOn = 2,
     Eeprom = 4,
 }
 
-impl TryFrom<u8> for MovieStartType {
+impl TryFrom<u16> for MovieStartType {
     type Error = InvalidMovieStartType;
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
         Self::from_repr(value as usize).ok_or(InvalidMovieStartType(value))
     }
 }
 
 #[derive(Debug, Error)]
 #[error("Invalid movie start type: {0}")]
-pub struct InvalidMovieStartType(u8);
+pub struct InvalidMovieStartType(u16);
 
 impl Default for MovieStartType {
     fn default() -> Self {

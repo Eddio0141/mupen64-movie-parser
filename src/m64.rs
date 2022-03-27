@@ -70,10 +70,10 @@ impl M64 {
             ))(data)
             .unwrap();
 
-        println!(
-            "uid: {}, vi_frame_count: {}, rerecord_count: {}, fps: {}, controller_count: {}",
-            uid, vi_frame_count, rerecord_count, fps, controller_count
-        );
+        // println!(
+        //     "uid: {}, vi_frame_count: {}, rerecord_count: {}, fps: {}, controller_count: {}",
+        //     uid, vi_frame_count, rerecord_count, fps, controller_count
+        // );
 
         // reserved should be 0
         // TODO does this need to be checked?
@@ -91,10 +91,10 @@ impl M64 {
         ))(data)
         .unwrap();
 
-        println!(
-            "input_frame_count: {}, movie_start_type: {:?}",
-            input_frame_count, movie_start_type
-        );
+        // println!(
+        //     "input_frame_count: {}, movie_start_type: {:?}",
+        //     input_frame_count, movie_start_type
+        // );
 
         // reserved should be 0
         // TODO does this need to be checked?
@@ -111,7 +111,7 @@ impl M64 {
         ))(data)
         .unwrap();
 
-        println!("controller_flags: {:?}", controller_flags);
+        // println!("controller_flags: {:?}", controller_flags);
 
         // reserved should be 0
         // TODO does this need to be checked?
@@ -130,10 +130,10 @@ impl M64 {
         ))(data)
         .unwrap();
 
-        println!(
-            "rom_internal_name: {}, rom_crc_32: {}, rom_country_code: {}",
-            rom_internal_name, rom_crc_32, rom_country_code
-        );
+        // println!(
+        //     "rom_internal_name: {}, rom_crc_32: {}, rom_country_code: {}",
+        //     rom_internal_name, rom_crc_32, rom_country_code
+        // );
 
         // reserved should be 0
         // TODO does this need to be checked?
@@ -155,7 +155,7 @@ impl M64 {
             ))(data)
             .unwrap();
 
-        println!("video_plugin: {}, audio_plugin: {}, input_plugin: {}, rsp_plugin: {}, author: {}, description, {}", video_plugin, audio_plugin, input_plugin, rsp_plugin, author, description);
+        // println!("video_plugin: {}, audio_plugin: {}, input_plugin: {}, rsp_plugin: {}, author: {}, description, {}", video_plugin, audio_plugin, input_plugin, rsp_plugin, author, description);
 
         let (data, inputs): (&[u8], _) = many0(input)(data).unwrap();
 

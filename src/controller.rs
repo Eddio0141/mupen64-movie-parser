@@ -23,6 +23,18 @@ impl Flags {
 
         flags
     }
+
+    pub fn to_u32(controllers: &[Flags; 4]) -> u32 {
+        let mut value = 0;
+
+        for (i, flag) in controllers.iter().enumerate() {
+            value |= (flag.controller_present as u32) << i;
+            value |= (flag.has_mempak as u32) << (i + 4);
+            value |= (flag.has_rumblepak as u32) << (i + 8);
+        }
+
+        value
+    }
 }
 
 fn nth_bit(value: u32, n: usize) -> bool {

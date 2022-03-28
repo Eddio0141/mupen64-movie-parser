@@ -1,4 +1,7 @@
-use std::str::Utf8Error;
+use std::{
+    io::{self, Seek, Write},
+    str::Utf8Error,
+};
 
 use arrayvec::ArrayString;
 use nom::{
@@ -27,7 +30,7 @@ pub struct M64 {
     pub rom_crc_32: u32,
     pub rom_country_code: u16,
     pub video_plugin: ArrayString<64>,
-    pub audio_plugin: ArrayString<64>,
+    pub sound_plugin: ArrayString<64>,
     pub input_plugin: ArrayString<64>,
     pub rsp_plugin: ArrayString<64>,
     pub author: ArrayString<222>,
@@ -176,13 +179,67 @@ impl M64 {
             rom_crc_32,
             rom_country_code,
             video_plugin,
-            audio_plugin,
+            sound_plugin: audio_plugin,
             input_plugin,
             rsp_plugin,
             author,
             description,
             inputs,
         })
+    }
+
+    pub fn write_m64<W>(&self, writer: &mut W) -> io::Result<()>
+    where
+        W: Write + Seek,
+    {
+        // signature
+        writer.write(b"M64\x1A")?;
+        // version number
+        writer.write(&3u32.to_le_bytes())?;
+        // uid
+        writer.write(&self.uid.to_le_bytes())?;
+        // vi frame count
+        writer.write(&self.vi_frame_count.to_le_bytes())?;
+        // rerecord count
+        writer.write(&self.rerecord_count.to_le_bytes())?;
+        // fps
+        writer.write(&self.fps.to_le_bytes())?;
+        // controller count
+        writer.write(&self.controller_count.to_le_bytes())?;
+        // reserved
+        writer.write(&[0; 2])?;
+        // input frame count
+        writer.write(&self.input_frame_count.to_le_bytes())?;
+        // movie start type
+        writer.write(&(self.movie_start_type as u16).to_le_bytes())?;
+        // reserved
+        writer.write(&[0; 2])?;
+        // controller flags
+        writer.write(&Flags::to_u32(&self.controller_flags).to_le_bytes())?;
+        // reserved
+        writer.write(&[0; 160])?;
+        // rom internal name
+        writer.write(self.rom_internal_name.as_bytes())?;
+        // rom crc 32
+        writer.write(&self.rom_crc_32.to_le_bytes())?;
+        // rom country code
+        writer.write(&self.rom_country_code.to_le_bytes())?;
+        // reserved
+        writer.write(&[0; 56])?;
+        // video plugin
+        writer.write(self.video_plugin.as_bytes())?;
+        // sound plugin
+        writer.write(self.sound_plugin.as_bytes())?;
+        // input plugin
+        writer.write(self.input_plugin.as_bytes())?;
+        // rsp plugin
+        writer.write(self.rsp_plugin.as_bytes())?;
+        // author
+        writer.write(self.author.as_bytes())?;
+        // description
+        writer.write(self.description.as_bytes())?;
+
+        Ok(())
     }
 }
 

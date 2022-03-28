@@ -241,7 +241,7 @@ impl M64 {
 
         // inputs
         for input in &self.inputs {
-            writer.write(&u32::from(input).to_le_bytes())?;
+            writer.write(&u32::from(*input).to_le_bytes())?;
         }
 
         Ok(())

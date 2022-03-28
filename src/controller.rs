@@ -41,7 +41,7 @@ fn nth_bit(value: u32, n: usize) -> bool {
     value.shr(n) & 0x01 != 0
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Input {
     pub up_dpad: bool,
     pub down_dpad: bool,
@@ -65,7 +65,7 @@ pub struct Input {
 }
 
 impl From<u32> for Input {
-    // big endian
+    // little endian
     fn from(mut value: u32) -> Self {
         let right_dpad = value & 0x01 != 0;
         value = value.shr(1);
@@ -126,8 +126,8 @@ impl From<u32> for Input {
     }
 }
 
-impl From<&Input> for u32 {
-    fn from(input: &Input) -> Self {
+impl From<Input> for u32 {
+    fn from(input: Input) -> Self {
         let mut value = 0;
 
         value |= (input.right_dpad as u32) << 0;

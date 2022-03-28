@@ -125,3 +125,30 @@ impl From<u32> for Input {
         }
     }
 }
+
+impl From<&Input> for u32 {
+    fn from(input: &Input) -> Self {
+        let mut value = 0;
+
+        value |= (input.right_dpad as u32) << 0;
+        value |= (input.left_dpad as u32) << 1;
+        value |= (input.down_dpad as u32) << 2;
+        value |= (input.up_dpad as u32) << 3;
+        value |= (input.start as u32) << 4;
+        value |= (input.z_button as u32) << 5;
+        value |= (input.b_button as u32) << 6;
+        value |= (input.a_button as u32) << 7;
+        value |= (input.right_cbutton as u32) << 8;
+        value |= (input.left_cbutton as u32) << 9;
+        value |= (input.down_cbutton as u32) << 10;
+        value |= (input.up_cbutton as u32) << 11;
+        value |= (input.right_shoulder as u32) << 12;
+        value |= (input.left_shoulder as u32) << 13;
+        value |= (input.reserved_1 as u32) << 14;
+        value |= (input.reserved_2 as u32) << 15;
+        value |= (input.x_axis as u32) << 16;
+        value |= (input.y_axis as u32) << 24;
+
+        value
+    }
+}

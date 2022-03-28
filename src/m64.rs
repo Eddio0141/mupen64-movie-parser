@@ -1,5 +1,5 @@
 use std::{
-    io::{self, Seek, Write},
+    io::{self, Write},
     str::Utf8Error,
 };
 
@@ -147,7 +147,7 @@ impl M64 {
             });
         }
 
-        let (data, (video_plugin, audio_plugin, input_plugin, rsp_plugin, author, description)) =
+        let (data, (video_plugin, sound_plugin, input_plugin, rsp_plugin, author, description)) =
             tuple((
                 array_string_64(),
                 array_string_64(),
@@ -179,7 +179,7 @@ impl M64 {
             rom_crc_32,
             rom_country_code,
             video_plugin,
-            sound_plugin: audio_plugin,
+            sound_plugin,
             input_plugin,
             rsp_plugin,
             author,
@@ -190,7 +190,7 @@ impl M64 {
 
     pub fn write_m64<W>(&self, writer: &mut W) -> io::Result<()>
     where
-        W: Write + Seek,
+        W: Write,
     {
         // signature
         writer.write(b"M64\x1A")?;
@@ -238,6 +238,11 @@ impl M64 {
         writer.write(self.author.as_bytes())?;
         // description
         writer.write(self.description.as_bytes())?;
+
+        // inputs
+        for input in &self.inputs {
+            writer.write(&u32::from(input).to_le_bytes())?;
+        }
 
         Ok(())
     }

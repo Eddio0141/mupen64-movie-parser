@@ -130,7 +130,7 @@ impl From<Input> for u32 {
     fn from(input: Input) -> Self {
         let mut value = 0;
 
-        value |= (input.right_dpad as u32) << 0;
+        value |= input.right_dpad as u32;
         value |= (input.left_dpad as u32) << 1;
         value |= (input.down_dpad as u32) << 2;
         value |= (input.up_dpad as u32) << 3;

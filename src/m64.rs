@@ -193,55 +193,55 @@ impl M64 {
         W: Write,
     {
         // signature
-        writer.write(b"M64\x1A")?;
+        writer.write_all(b"M64\x1A")?;
         // version number
-        writer.write(&3u32.to_le_bytes())?;
+        writer.write_all(&3u32.to_le_bytes())?;
         // uid
-        writer.write(&self.uid.to_le_bytes())?;
+        writer.write_all(&self.uid.to_le_bytes())?;
         // vi frame count
-        writer.write(&self.vi_frame_count.to_le_bytes())?;
+        writer.write_all(&self.vi_frame_count.to_le_bytes())?;
         // rerecord count
-        writer.write(&self.rerecord_count.to_le_bytes())?;
+        writer.write_all(&self.rerecord_count.to_le_bytes())?;
         // fps
-        writer.write(&self.fps.to_le_bytes())?;
+        writer.write_all(&self.fps.to_le_bytes())?;
         // controller count
-        writer.write(&self.controller_count.to_le_bytes())?;
+        writer.write_all(&self.controller_count.to_le_bytes())?;
         // reserved
-        writer.write(&[0; 2])?;
+        writer.write_all(&[0; 2])?;
         // input frame count
-        writer.write(&self.input_frame_count.to_le_bytes())?;
+        writer.write_all(&self.input_frame_count.to_le_bytes())?;
         // movie start type
-        writer.write(&(self.movie_start_type as u16).to_le_bytes())?;
+        writer.write_all(&(self.movie_start_type as u16).to_le_bytes())?;
         // reserved
-        writer.write(&[0; 2])?;
+        writer.write_all(&[0; 2])?;
         // controller flags
-        writer.write(&Flags::to_u32(&self.controller_flags).to_le_bytes())?;
+        writer.write_all(&Flags::to_u32(&self.controller_flags).to_le_bytes())?;
         // reserved
-        writer.write(&[0; 160])?;
+        writer.write_all(&[0; 160])?;
         // rom internal name
-        writer.write(self.rom_internal_name.as_bytes())?;
+        writer.write_all(self.rom_internal_name.as_bytes())?;
         // rom crc 32
-        writer.write(&self.rom_crc_32.to_le_bytes())?;
+        writer.write_all(&self.rom_crc_32.to_le_bytes())?;
         // rom country code
-        writer.write(&self.rom_country_code.to_le_bytes())?;
+        writer.write_all(&self.rom_country_code.to_le_bytes())?;
         // reserved
-        writer.write(&[0; 56])?;
+        writer.write_all(&[0; 56])?;
         // video plugin
-        writer.write(self.video_plugin.as_bytes())?;
+        writer.write_all(self.video_plugin.as_bytes())?;
         // sound plugin
-        writer.write(self.sound_plugin.as_bytes())?;
+        writer.write_all(self.sound_plugin.as_bytes())?;
         // input plugin
-        writer.write(self.input_plugin.as_bytes())?;
+        writer.write_all(self.input_plugin.as_bytes())?;
         // rsp plugin
-        writer.write(self.rsp_plugin.as_bytes())?;
+        writer.write_all(self.rsp_plugin.as_bytes())?;
         // author
-        writer.write(self.author.as_bytes())?;
+        writer.write_all(self.author.as_bytes())?;
         // description
-        writer.write(self.description.as_bytes())?;
+        writer.write_all(self.description.as_bytes())?;
 
         // inputs
         for input in &self.inputs {
-            writer.write(&u32::from(*input).to_le_bytes())?;
+            writer.write_all(&u32::from(*input).to_le_bytes())?;
         }
 
         Ok(())

@@ -146,8 +146,8 @@ impl From<Input> for u32 {
         value |= (input.left_shoulder as u32) << 13;
         value |= (input.reserved_1 as u32) << 14;
         value |= (input.reserved_2 as u32) << 15;
-        value |= (input.x_axis as u32) << 16;
-        value |= (input.y_axis as u32) << 24;
+        value |= ((input.x_axis as u32) & 0xFF) << 16;
+        value |= ((input.y_axis as u32) & 0xFF) << 24;
 
         value
     }

@@ -2,10 +2,16 @@ use crate::{controller::Input, m64::M64};
 
 #[test]
 fn test_files_parse() {
-    let files = [include_bytes!("1 kick 2 boxes.m64")];
+    let files = [
+        include_bytes!("./m64s/1 kick 2 boxes.m64").to_vec(),
+        include_bytes!("./m64s/120 star tas (2012).m64").to_vec(),
+        include_bytes!("./m64s/attempt1.m64").to_vec(),
+        include_bytes!("./m64s/bitfs_noreds2.m64").to_vec(),
+        include_bytes!("./m64s/super mario 64 16 star tas.m64").to_vec(),
+    ];
 
     for file in files {
-        let m64 = M64::from_u8_array(file).unwrap();
+        let m64 = M64::from_u8_array(&file).unwrap();
         let mut m64_u8 = Vec::new();
         m64.write_m64(&mut m64_u8).unwrap();
         assert_eq!(m64_u8, file)

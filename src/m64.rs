@@ -6,7 +6,7 @@ use std::{
 use arrayvec::ArrayString;
 use nom::{
     bytes::complete::{tag, take},
-    combinator::{map_opt, map_res},
+    combinator::{map_opt, map_res, verify},
     multi::many0,
     number::complete::{le_u16, le_u32, u8},
     sequence::tuple,
@@ -53,100 +53,57 @@ impl M64 {
         };
         let input =
             map_opt::<_, _, _, nom::error::Error<_>, _, _>(le_u32, |i: u32| Some(Input::from(i)));
+        let version_verify = verify(le_u32, |version| *version == 3);
+        let reserved_check =
+            |bytes: usize| verify(take(bytes), |v: &[u8]| v.iter().all(|&b| b == 0));
 
         // TODO more errors
-        let (data, (_, version_number)) = tuple((signature, le_u32))(data).unwrap();
 
-        // version number check
-        if version_number != 3 {
-            return Err(M64ParseError::InvalidVersionNumber(version_number));
-        }
-
-        let (data, (uid, vi_frame_count, rerecord_count, fps, controller_count, reserved)) =
-            tuple((
-                le_u32,
-                le_u32,
-                le_u32,
-                u8,
-                u8,
-                take::<_, _, nom::error::Error<_>>(2usize),
-            ))(data)
-            .unwrap();
-
-        // println!(
-        //     "uid: {}, vi_frame_count: {}, rerecord_count: {}, fps: {}, controller_count: {}",
-        //     uid, vi_frame_count, rerecord_count, fps, controller_count
-        // );
-
-        // reserved should be 0
-        // TODO does this need to be checked?
-        if reserved != [0, 0] {
-            return Err(M64ParseError::InvalidReserved {
-                offset: 0x16,
-                length: 2,
-            });
-        }
-
-        let (data, (input_frame_count, movie_start_type, reserved)) = tuple((
+        // getting header data
+        let (
+            data,
+            (
+                _,
+                _,
+                uid,
+                vi_frame_count,
+                rerecord_count,
+                fps,
+                controller_count,
+                _,
+                input_frame_count,
+                movie_start_type,
+                _,
+                controller_flags,
+                _,
+            ),
+        ) = tuple((
+            signature,
+            version_verify,
+            le_u32,
+            le_u32,
+            le_u32,
+            u8,
+            u8,
+            reserved_check(2),
             le_u32,
             movie_start_type,
-            take::<_, _, nom::error::Error<_>>(2usize),
-        ))(data)
-        .unwrap();
-
-        // println!(
-        //     "input_frame_count: {}, movie_start_type: {:?}",
-        //     input_frame_count, movie_start_type
-        // );
-
-        // reserved should be 0
-        // TODO does this need to be checked?
-        if reserved != [0, 0] {
-            return Err(M64ParseError::InvalidReserved {
-                offset: 0x1E,
-                length: 2,
-            });
-        }
-
-        let (data, (controller_flags, reserved)) = tuple((
+            reserved_check(2),
             controller_flags,
-            take::<_, _, nom::error::Error<_>>(160usize),
+            reserved_check(160),
         ))(data)
         .unwrap();
 
-        // println!("controller_flags: {:?}", controller_flags);
-
-        // reserved should be 0
-        // TODO does this need to be checked?
-        if reserved != [0; 160] {
-            return Err(M64ParseError::InvalidReserved {
-                offset: 0x24,
-                length: 160,
-            });
-        }
-
-        let (data, (rom_internal_name, rom_crc_32, rom_country_code, reserved)) = tuple((
+        // getting rom data
+        let (data, (rom_internal_name, rom_crc_32, rom_country_code, _)) = tuple((
             array_string(32).map(|s| ArrayString::<32>::from(s).unwrap()),
             le_u32,
             le_u16,
-            take::<_, _, nom::error::Error<_>>(56usize),
+            reserved_check(56),
         ))(data)
         .unwrap();
 
-        // println!(
-        //     "rom_internal_name: {}, rom_crc_32: {}, rom_country_code: {}",
-        //     rom_internal_name, rom_crc_32, rom_country_code
-        // );
-
-        // reserved should be 0
-        // TODO does this need to be checked?
-        if reserved != [0; 56] {
-            return Err(M64ParseError::InvalidReserved {
-                offset: 0xEA,
-                length: 56,
-            });
-        }
-
+        // getting emulator data
         let (data, (video_plugin, sound_plugin, input_plugin, rsp_plugin, author, description)) =
             tuple((
                 array_string_64(),
@@ -158,8 +115,7 @@ impl M64 {
             ))(data)
             .unwrap();
 
-        // println!("video_plugin: {}, audio_plugin: {}, input_plugin: {}, rsp_plugin: {}, author: {}, description, {}", video_plugin, audio_plugin, input_plugin, rsp_plugin, author, description);
-
+        // getting input data
         let (data, inputs): (&[u8], _) = many0(input)(data).unwrap();
 
         if !data.is_empty() {

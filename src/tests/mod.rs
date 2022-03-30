@@ -60,10 +60,64 @@ fn invalid_signature() {
 
 #[test]
 fn empty_file() {
-    let file = vec![];
+    let file = Vec::new();
     let m64 = M64::from_u8_array(&file);
     assert_eq!(
         format!("{}", m64.unwrap_err()),
         "Data input too small, expected 4 bytes, got 0 bytes"
+    );
+}
+
+#[test]
+fn not_enough_data() {
+    let file = include_bytes!("./m64s/not_enough_data.m64").to_vec();
+    let m64 = M64::from_u8_array(&file);
+    assert_eq!(
+        format!("{}", m64.unwrap_err()),
+        "Data input too small, expected 4 bytes, got 2 bytes"
+    );
+}
+
+#[test]
+fn wrong_version() {
+    let file = include_bytes!("./m64s/wrong_version.m64").to_vec();
+    let m64 = M64::from_u8_array(&file);
+    assert_eq!(
+        format!("{}", m64.unwrap_err()),
+        "Invalid version, expected `3`, got `4`"
+    );
+}
+
+#[test]
+fn invalid_reserved() {
+    let file = include_bytes!("./m64s/invalid_reserved.m64").to_vec();
+    let m64 = M64::from_u8_array(&file);
+    assert_eq!(
+        format!("{}", m64.unwrap_err()),
+        "Reserved data is not all zero"
+    );
+}
+
+#[test]
+fn invalid_movie_start_type() {
+    let file = include_bytes!("./m64s/invalid_movie_start_type.m64").to_vec();
+    let m64 = M64::from_u8_array(&file);
+    assert_eq!(format!("{}", m64.unwrap_err()), "Invalid movie start type");
+}
+
+#[test]
+fn invalid_utf8() {
+    let file = include_bytes!("./m64s/invalid_utf8.m64").to_vec();
+    let m64 = M64::from_u8_array(&file);
+    assert_eq!(format!("{}", m64.unwrap_err()), "Invalid UTF-8 string");
+}
+
+#[test]
+fn not_enough_input_data() {
+    let file = include_bytes!("./m64s/not_enough_input_data.m64").to_vec();
+    let m64 = M64::from_u8_array(&file);
+    assert_eq!(
+        format!("{}", m64.unwrap_err()),
+        "Data input too small, expected 4 bytes, got 2 bytes"
     );
 }

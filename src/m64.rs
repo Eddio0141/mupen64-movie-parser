@@ -1,5 +1,5 @@
 use std::{
-    io::{self, Write},
+    io::{self, Read, Write},
     str::Utf8Error,
 };
 
@@ -10,13 +10,14 @@ use nom::{
     multi::many0,
     number::complete::{le_u16, le_u32, u8},
     sequence::tuple,
-    Parser,
+    Finish, Parser,
 };
 use strum_macros::FromRepr;
 use thiserror::Error;
 
 use crate::controller::{Flags, Input};
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct M64 {
     pub uid: u32,
     pub vi_frame_count: u32,
@@ -42,7 +43,8 @@ pub struct M64 {
 impl M64 {
     pub fn from_u8_array(data: &[u8]) -> Result<Self, M64ParseError> {
         let signature = tag::<_, _, nom::error::Error<_>>([0x4D, 0x36, 0x34, 0x1A]);
-        let movie_start_type = map_res(le_u16, MovieStartType::try_from);
+        let movie_start_type =
+            map_res::<_, _, _, nom::error::Error<_>, _, _, _>(le_u16, MovieStartType::try_from);
         let controller_flags = map_opt(le_u32, |b| Some(Flags::from_u32(b)));
         let array_string = |n: usize| map_res(take(n), std::str::from_utf8);
         let array_string_64 = || {
@@ -53,18 +55,43 @@ impl M64 {
         };
         let input =
             map_opt::<_, _, _, nom::error::Error<_>, _, _>(le_u32, |i: u32| Some(Input::from(i)));
-        let version_verify = verify(le_u32, |version| *version == 3);
+        let mut version_verify = verify(le_u32, |version| *version == 3);
         let reserved_check =
             |bytes: usize| verify(take(bytes), |v: &[u8]| v.iter().all(|&b| b == 0));
 
-        // TODO more errors
+        // header data
+        let (data, _) = signature(data).finish().map_err(|err| {
+            let input = err.input;
+            if input.len() < 4 {
+                M64ParseError::NotEnoughData {
+                    expected: 4,
+                    actual: input.len(),
+                }
+            } else {
+                M64ParseError::InvalidFileSignature(input[..4].try_into().unwrap())
+            }
+        })?;
 
-        // getting header data
+        // version
+        let (data, _) =
+            version_verify(data)
+                .finish()
+                .map_err(|err: nom::error::Error<&[u8]>| {
+                    let input = err.input;
+                    if input.len() < 4 {
+                        M64ParseError::NotEnoughData {
+                            expected: 4,
+                            actual: input.len(),
+                        }
+                    } else {
+                        let input = u32::from_le_bytes(input[..4].try_into().unwrap());
+                        M64ParseError::InvalidVersion(input)
+                    }
+                })?;
+
         let (
             data,
             (
-                _,
-                _,
                 uid,
                 vi_frame_count,
                 rerecord_count,
@@ -78,8 +105,6 @@ impl M64 {
                 _,
             ),
         ) = tuple((
-            signature,
-            version_verify,
             le_u32,
             le_u32,
             le_u32,
@@ -92,7 +117,15 @@ impl M64 {
             controller_flags,
             reserved_check(160),
         ))(data)
-        .unwrap();
+        .finish()
+        .map_err(|err| match err.code {
+            nom::error::ErrorKind::Verify => M64ParseError::ReservedNotZero,
+            nom::error::ErrorKind::Eof => M64ParseError::NotEnoughData {
+                expected: 4,
+                actual: err.input.len(),
+            },
+            _ => unimplemented!(),
+        })?;
 
         // getting rom data
         let (data, (rom_internal_name, rom_crc_32, rom_country_code, _)) = tuple((
@@ -119,7 +152,10 @@ impl M64 {
         let (data, inputs): (&[u8], _) = many0(input)(data).unwrap();
 
         if !data.is_empty() {
-            return Err(M64ParseError::InvalidRemainingInputData(data.len()));
+            return Err(M64ParseError::NotEnoughData {
+                expected: 4,
+                actual: data.len(),
+            });
         }
 
         Ok(M64 {
@@ -142,6 +178,15 @@ impl M64 {
             description,
             inputs,
         })
+    }
+
+    pub fn read_m64<R>(mut reader: R) -> Result<Self, M64ParseError>
+    where
+        R: Read,
+    {
+        let mut data = Vec::new();
+        reader.read_to_end(&mut data)?;
+        Self::from_u8_array(&data)
     }
 
     pub fn write_m64<W>(&self, writer: &mut W) -> io::Result<()>
@@ -206,12 +251,20 @@ impl M64 {
 
 #[derive(Debug, Error)]
 pub enum M64ParseError {
-    #[error("Expected version number to be 3, got {0}")]
-    InvalidVersionNumber(u32),
-    #[error("Expected reserved variables to be 0, at offset {offset:#X} for {length} bytes")]
-    InvalidReserved { offset: usize, length: usize },
-    #[error("Invalid remaining input data: {0} bytes, must be 4 bytes aligned")]
-    InvalidRemainingInputData(usize),
+    #[error("Invalid file signature, expected `[4D 36 34 1A]`, got `{0:X?}`")]
+    InvalidFileSignature([u8; 4]),
+    #[error("Invalid version, expected `3` got `{0}`")]
+    InvalidVersion(u32),
+    #[error("Reserved data is not zero")]
+    ReservedNotZero,
+    #[error("Data input too small, expected {expected} bytes, got {actual} bytes")]
+    NotEnoughData { expected: usize, actual: usize },
+    #[error(transparent)]
+    InvalidMovieStartType(#[from] InvalidMovieStartType),
+    #[error(transparent)]
+    Utf8Error(#[from] Utf8Error),
+    #[error(transparent)]
+    Io(#[from] io::Error),
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, FromRepr)]

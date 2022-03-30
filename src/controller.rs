@@ -1,6 +1,6 @@
 use std::ops::Shr;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Flags {
     pub controller_present: bool,
     pub has_mempak: bool,

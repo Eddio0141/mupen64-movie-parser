@@ -47,3 +47,23 @@ fn inputs_parse() {
         assert_eq!(input_to_raw, input_raw);
     }
 }
+
+#[test]
+fn invalid_signature() {
+    let file = include_bytes!("./m64s/invalid_signature.m64").to_vec();
+    let m64 = M64::from_u8_array(&file);
+    assert_eq!(
+        format!("{}", m64.unwrap_err()),
+        "Invalid file signature, expected `[4D 36 34 1A]`, got `[FF, FF, FF, FF]`"
+    );
+}
+
+#[test]
+fn empty_file() {
+    let file = vec![];
+    let m64 = M64::from_u8_array(&file);
+    assert_eq!(
+        format!("{}", m64.unwrap_err()),
+        "Data input too small, expected 4 bytes, got 0 bytes"
+    );
+}

@@ -1,4 +1,4 @@
-//! Parses a Mupen64-rerecording `.m64` file.
+//! A crate for parsing Mupen64-rerecording `.m64` files.
 //!
 //! # Example
 //!

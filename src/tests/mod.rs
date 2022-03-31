@@ -1,3 +1,5 @@
+use chrono::{TimeZone, Utc};
+
 use crate::{controller::Input, m64::M64};
 
 #[test]
@@ -120,4 +122,11 @@ fn not_enough_input_data() {
         format!("{}", m64.unwrap_err()),
         "Data input too small, expected 4 bytes, got 2 bytes"
     );
+}
+
+#[test]
+fn recording_time_test() {
+    let file = include_bytes!("./m64s/120 star tas (2012).m64").to_vec();
+    let m64 = M64::from_u8_array(&file).unwrap();
+    assert_eq!(m64.recording_time().unwrap(), Utc.timestamp(1272727295, 0));
 }

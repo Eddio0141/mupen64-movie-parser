@@ -4,6 +4,7 @@ use std::{
 };
 
 use arrayvec::ArrayString;
+use chrono::{DateTime, LocalResult, TimeZone, Utc};
 use nom::{
     bytes::complete::{tag, take},
     combinator::{map, map_opt, map_res, verify},
@@ -17,6 +18,8 @@ use thiserror::Error;
 
 use crate::controller::{Flags, Input};
 
+/// The M64 file.
+/// Follows the format described in [this document](https://tasvideos.org/EmulatorResources/Mupen/M64).
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct M64 {
     pub uid: u32,
@@ -324,6 +327,10 @@ impl M64 {
         }
 
         Ok(())
+    }
+
+    pub fn recording_time(&self) -> LocalResult<DateTime<Utc>> {
+        Utc.timestamp_opt(self.uid as i64, 0)
     }
 }
 

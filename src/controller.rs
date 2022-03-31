@@ -1,3 +1,4 @@
+//! Contains structs related to controller information.
 use std::ops::Shr;
 
 /// The controller status flags.

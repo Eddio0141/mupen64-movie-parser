@@ -1,3 +1,4 @@
+//! Contains the M64 struct and other types used for the M64 file.
 use std::{
     io::{self, Read, Write},
     str::Utf8Error,

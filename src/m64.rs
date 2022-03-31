@@ -26,11 +26,11 @@ pub struct M64 {
     /// Also used as the recording time in unix epoch format.
     pub uid: u32,
     /// Number of vertical interrupt frames.
-    pub vi_frame_count: u32,
+    pub vi_frames: u32,
     /// Number of input samples for any controllers.
-    pub input_frame_count: u32,
+    pub input_frames: u32,
     /// Rerecord count.
-    pub rerecord_count: u32,
+    pub rerecords: u32,
     /// Frames per second in vertical interrupt frames.
     pub fps: u8,
     /// The number of controllers.
@@ -53,7 +53,7 @@ pub struct M64 {
     pub input_plugin: ArrayString<64>,
     /// Name of the RSP plugin used when recording, directly from the plugin.
     pub rsp_plugin: ArrayString<64>,
-    /// Author of the TAS.
+    /// Author(s) of the TAS.
     pub author: ArrayString<222>,
     /// Description of the TAS.
     pub description: ArrayString<256>,
@@ -261,11 +261,11 @@ impl M64 {
 
         Ok(M64 {
             uid,
-            vi_frame_count,
-            rerecord_count,
+            vi_frames: vi_frame_count,
+            rerecords: rerecord_count,
             fps,
             controller_count,
-            input_frame_count,
+            input_frames: input_frame_count,
             movie_start_type,
             controller_flags,
             rom_internal_name,
@@ -303,9 +303,9 @@ impl M64 {
         // uid
         writer.write_all(&self.uid.to_le_bytes())?;
         // vi frame count
-        writer.write_all(&self.vi_frame_count.to_le_bytes())?;
+        writer.write_all(&self.vi_frames.to_le_bytes())?;
         // rerecord count
-        writer.write_all(&self.rerecord_count.to_le_bytes())?;
+        writer.write_all(&self.rerecords.to_le_bytes())?;
         // fps
         writer.write_all(&self.fps.to_le_bytes())?;
         // controller count
@@ -313,7 +313,7 @@ impl M64 {
         // reserved
         writer.write_all(&[0; 2])?;
         // input frame count
-        writer.write_all(&self.input_frame_count.to_le_bytes())?;
+        writer.write_all(&self.input_frames.to_le_bytes())?;
         // movie start type
         writer.write_all(&(self.movie_start_type as u16).to_le_bytes())?;
         // reserved

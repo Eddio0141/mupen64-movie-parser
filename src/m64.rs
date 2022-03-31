@@ -68,8 +68,7 @@ impl M64 {
     pub fn from_u8_array(data: &[u8]) -> Result<Self, M64ParseError> {
         // defining parsers
         let signature = tag::<_, _, nom::error::Error<_>>([0x4D, 0x36, 0x34, 0x1A]);
-        let mut movie_start_type =
-            map_res::<_, _, _, nom::error::Error<_>, _, _, _>(le_u16, MovieStartType::try_from);
+        let movie_start_type = map_opt(le_u16, |value| MovieStartType::from_repr(value as usize));
         let controller_flags = map_opt(le_u32, |b| Some(Flags::from_u32(b)));
         let array_string = |n: usize| map_res(take(n), std::str::from_utf8);
         let array_string_64 = || {
@@ -80,129 +79,61 @@ impl M64 {
         };
         let input =
             map_opt::<_, _, _, nom::error::Error<_>, _, _>(le_u32, |i: u32| Some(Input::from(i)));
-        let mut version_verify = verify(le_u32, |version| *version == 3);
+        let version_verify = verify(le_u32, |version| *version == 3);
         let reserved_check =
             |bytes: usize| verify(take(bytes), |v: &[u8]| v.iter().all(|&b| b == 0));
 
+        // header data size check
+        if data.len() < 0x400 {
+            return Err(M64ParseError::NotEnoughHeaderData(data.len()));
+        }
+
+        // input data 4 bytes alignment check
+        if data.len() % 4 != 0 {
+            return Err(M64ParseError::InputNot4BytesAligned(data.len() % 4));
+        }
+
         // header data
         let (data, _) = signature(data).finish().map_err(|err| {
-            let input = err.input;
-            if input.len() < 4 {
-                M64ParseError::NotEnoughData {
-                    expected: 4,
-                    actual: input.len(),
-                }
-            } else {
-                M64ParseError::InvalidFileSignature(input[..4].try_into().unwrap())
-            }
+            M64ParseError::InvalidFileSignature(err.input[..4].try_into().unwrap())
         })?;
 
-        // version
-        let (data, _) =
-            version_verify(data)
+        let (data, (_, uid, vi_frames, rerecords, fps, controller_count)) =
+            tuple((version_verify, le_u32, le_u32, le_u32, u8, u8))(data)
                 .finish()
                 .map_err(|err: nom::error::Error<&[u8]>| {
-                    let input = err.input;
-                    if input.len() < 4 {
-                        M64ParseError::NotEnoughData {
-                            expected: 4,
-                            actual: input.len(),
-                        }
-                    } else {
-                        let input = u32::from_le_bytes(input[..4].try_into().unwrap());
-                        M64ParseError::InvalidVersion(input)
-                    }
-                })?;
-
-        let (data, (uid, vi_frame_count, rerecord_count, fps, controller_count)) =
-            tuple((le_u32, le_u32, le_u32, u8, u8))(data)
-                .finish()
-                .map_err(|err: nom::error::Error<_>| M64ParseError::NotEnoughData {
-                    expected: 4,
-                    actual: err.input.len(),
+                    let input = u32::from_le_bytes(err.input[..4].try_into().unwrap());
+                    M64ParseError::InvalidVersion(input)
                 })?;
 
         let (data, _) = reserved_check(2)(data)
+            .map_err(|_: nom::Err<nom::error::Error<_>>| M64ParseError::ReservedNotZero)?;
+
+        let (data, (input_frames, movie_start_type)) = tuple((le_u32, movie_start_type))(data)
             .finish()
-            .map_err(|err: nom::error::Error<_>| match err.code {
-                nom::error::ErrorKind::Verify => M64ParseError::ReservedNotZero,
-                nom::error::ErrorKind::Eof => M64ParseError::NotEnoughData {
-                    expected: 2,
-                    actual: err.input.len(),
-                },
-                _ => unimplemented!(),
-            })?;
-
-        let (data, input_frame_count) =
-            le_u32(data).finish().map_err(|err: nom::error::Error<_>| {
-                M64ParseError::NotEnoughData {
-                    expected: 4,
-                    actual: err.input.len(),
-                }
-            })?;
-
-        let (data, movie_start_type) =
-            movie_start_type(data)
-                .finish()
-                .map_err(|err: nom::error::Error<_>| match err.code {
-                    nom::error::ErrorKind::MapRes => M64ParseError::InvalidMovieStartType,
-                    nom::error::ErrorKind::Eof => M64ParseError::NotEnoughData {
-                        expected: 2,
-                        actual: err.input.len(),
-                    },
-                    _ => unimplemented!(),
-                })?;
+            .map_err(|_: nom::error::Error<_>| M64ParseError::InvalidMovieStartType)?;
 
         let (data, (_, controller_flags, _)) =
             tuple((reserved_check(2), controller_flags, reserved_check(160)))(data)
                 .finish()
                 .map_err(|err| match err.code {
                     nom::error::ErrorKind::Verify => M64ParseError::ReservedNotZero,
-                    nom::error::ErrorKind::Eof => M64ParseError::NotEnoughData {
-                        expected: 4,
-                        actual: err.input.len(),
-                    },
                     _ => unimplemented!(),
                 })?;
 
         // getting rom data
-        let (data, rom_internal_name) =
-            map(array_string(32), |s| ArrayString::<32>::from(s).unwrap())(data)
-                .finish()
-                .map_err(|err: nom::error::Error<_>| match err.code {
-                    nom::error::ErrorKind::Eof => M64ParseError::NotEnoughData {
-                        expected: 32,
-                        actual: err.input.len(),
-                    },
-                    nom::error::ErrorKind::MapRes => M64ParseError::InvalidString,
-                    _ => unimplemented!(),
-                })?;
-
-        let (data, rom_crc_32) = le_u32(data).finish().map_err(|err: nom::error::Error<_>| {
-            M64ParseError::NotEnoughData {
-                expected: 4,
-                actual: err.input.len(),
-            }
+        let (data, (rom_internal_name, rom_crc_32, rom_country_code, _)) = tuple((
+            map(array_string(32), |s| ArrayString::<32>::from(s).unwrap()),
+            le_u32,
+            le_u16,
+            reserved_check(56),
+        ))(data)
+        .finish()
+        .map_err(|err| match err.code {
+            nom::error::ErrorKind::MapRes => M64ParseError::InvalidString,
+            nom::error::ErrorKind::Verify => M64ParseError::ReservedNotZero,
+            _ => unimplemented!(),
         })?;
-
-        let (data, rom_country_code) =
-            le_u16(data).finish().map_err(|err: nom::error::Error<_>| {
-                M64ParseError::NotEnoughData {
-                    expected: 2,
-                    actual: err.input.len(),
-                }
-            })?;
-
-        let (data, _) = reserved_check(56)(data)
-            .finish()
-            .map_err(|err| match err.code {
-                nom::error::ErrorKind::Verify => M64ParseError::ReservedNotZero,
-                nom::error::ErrorKind::Eof => M64ParseError::NotEnoughData {
-                    expected: 56,
-                    actual: err.input.len(),
-                },
-                _ => unimplemented!(),
-            })?;
 
         // getting emulator data
         let (data, (video_plugin, sound_plugin, input_plugin, rsp_plugin)) = tuple((
@@ -213,10 +144,6 @@ impl M64 {
         ))(data)
         .finish()
         .map_err(|err: nom::error::Error<_>| match err.code {
-            nom::error::ErrorKind::Eof => M64ParseError::NotEnoughData {
-                expected: 64,
-                actual: err.input.len(),
-            },
             nom::error::ErrorKind::MapRes => M64ParseError::InvalidString,
             _ => unimplemented!(),
         })?;
@@ -224,10 +151,6 @@ impl M64 {
         let (data, author) = map(array_string(222), |s| ArrayString::<222>::from(s).unwrap())(data)
             .finish()
             .map_err(|err| match err.code {
-                nom::error::ErrorKind::Eof => M64ParseError::NotEnoughData {
-                    expected: 64,
-                    actual: err.input.len(),
-                },
                 nom::error::ErrorKind::MapRes => M64ParseError::InvalidString,
                 _ => unimplemented!(),
             })?;
@@ -236,37 +159,20 @@ impl M64 {
             map(array_string(256), |s| ArrayString::<256>::from(s).unwrap())(data)
                 .finish()
                 .map_err(|err| match err.code {
-                    nom::error::ErrorKind::Eof => M64ParseError::NotEnoughData {
-                        expected: 64,
-                        actual: err.input.len(),
-                    },
                     nom::error::ErrorKind::MapRes => M64ParseError::InvalidString,
                     _ => unimplemented!(),
                 })?;
 
         // getting input data
-        let (data, inputs): (&[u8], _) =
-            many0(input)(data)
-                .finish()
-                .map_err(|err: nom::error::Error<_>| M64ParseError::NotEnoughData {
-                    expected: 4,
-                    actual: err.input.len(),
-                })?;
-
-        if !data.is_empty() {
-            return Err(M64ParseError::NotEnoughData {
-                expected: 4,
-                actual: data.len(),
-            });
-        }
+        let (_, inputs): (&[u8], _) = many0(input)(data).unwrap();
 
         Ok(M64 {
             uid,
-            vi_frames: vi_frame_count,
-            rerecords: rerecord_count,
+            vi_frames,
+            rerecords,
             fps,
             controller_count,
-            input_frames: input_frame_count,
+            input_frames,
             movie_start_type,
             controller_flags,
             rom_internal_name,
@@ -370,10 +276,12 @@ pub enum M64ParseError {
     /// Reserved bytes weren't zero.
     #[error("Reserved data is not all zero")]
     ReservedNotZero,
-    /// There wasn't enough data to read.
-    /// The expected amount of data is given in the `expected` field, and the actual amount of data is given in the `actual` field.
-    #[error("Data input too small, expected {expected} bytes, got {actual} bytes")]
-    NotEnoughData { expected: usize, actual: usize },
+    /// The header data was smaller than 1024 bytes.
+    #[error("Not enough header data, expected 1024 bytes, got {0} bytes")]
+    NotEnoughHeaderData(usize),
+    /// The input data wasn't 4 bytes aligned.
+    #[error("Input data is not 4 bytes aligned, final input data size is {0} bytes")]
+    InputNot4BytesAligned(usize),
     /// Invalid movie start type.
     #[error("Invalid movie start type")]
     InvalidMovieStartType,
@@ -396,19 +304,6 @@ pub enum MovieStartType {
     /// Movie begins from EEPROM.
     Eeprom = 4,
 }
-
-impl TryFrom<u16> for MovieStartType {
-    type Error = InvalidMovieStartType;
-
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        Self::from_repr(value as usize).ok_or(InvalidMovieStartType(value))
-    }
-}
-
-/// Error for attempting to parse an invalid movie start type.
-#[derive(Debug, Error)]
-#[error("Invalid movie start type: {0}")]
-pub struct InvalidMovieStartType(u16);
 
 impl Default for MovieStartType {
     fn default() -> Self {

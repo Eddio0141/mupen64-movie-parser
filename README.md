@@ -1,6 +1,6 @@
 # mupen64-movie-parser
 -----
-[![crates.io](https://img.shields.io/crates/v/$CRATE.svg)](https://crates.io/crates/mupen64-movie-parser)
+[![crates.io](https://img.shields.io/crates/v/mupen64-movie-parser)](https://crates.io/crates/mupen64-movie-parser)
 [![Documentation](https://img.shields.io/docsrs/mupen64-movie-parser)](https://docs.rs/mupen64-movie-parser/)
 
 A crate for parsing Mupen64-rerecording `.m64` files.

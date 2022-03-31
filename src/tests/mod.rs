@@ -66,7 +66,7 @@ fn empty_file() {
     let m64 = M64::from_u8_array(&file);
     assert_eq!(
         format!("{}", m64.unwrap_err()),
-        "Data input too small, expected 4 bytes, got 0 bytes"
+        "Not enough header data, expected 1024 bytes, got 0 bytes"
     );
 }
 
@@ -76,7 +76,7 @@ fn not_enough_data() {
     let m64 = M64::from_u8_array(&file);
     assert_eq!(
         format!("{}", m64.unwrap_err()),
-        "Data input too small, expected 4 bytes, got 2 bytes"
+        "Not enough header data, expected 1024 bytes, got 6 bytes"
     );
 }
 
@@ -120,7 +120,7 @@ fn not_enough_input_data() {
     let m64 = M64::from_u8_array(&file);
     assert_eq!(
         format!("{}", m64.unwrap_err()),
-        "Data input too small, expected 4 bytes, got 2 bytes"
+        "Input data is not 4 bytes aligned, final input data size is 2 bytes"
     );
 }
 

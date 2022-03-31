@@ -22,28 +22,48 @@ use crate::controller::{Flags, Input};
 /// Follows the format described in [this document](https://tasvideos.org/EmulatorResources/Mupen/M64).
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct M64 {
+    /// Identifies the movie-savestate relationship.
+    /// Also used as the recording time in unix epoch format.
     pub uid: u32,
+    /// Number of vertical interrupt frames.
     pub vi_frame_count: u32,
+    /// Number of input samples for any controllers.
     pub input_frame_count: u32,
+    /// Rerecord count.
     pub rerecord_count: u32,
+    /// Frames per second in vertical interrupt frames.
     pub fps: u8,
+    /// The number of controllers.
     pub controller_count: u8,
+    /// Movie start type.
     pub movie_start_type: MovieStartType,
+    /// The controller flags.
     pub controller_flags: [Flags; 4],
+    /// Internal name of the ROM used when recording, directly from the ROM.
     pub rom_internal_name: ArrayString<32>,
+    /// CRC32 of the ROM used when recording, directly from the ROM.
     pub rom_crc_32: u32,
+    /// Country code of the ROM used when recording, directly from the ROM.
     pub rom_country_code: u16,
+    /// Name of the video plugin used when recording, direcltly from the plugin.
     pub video_plugin: ArrayString<64>,
+    /// Name of the sound plugin used when recording, directly from the plugin.
     pub sound_plugin: ArrayString<64>,
+    /// Name of the input plugin used when recording, directly from the plugin.
     pub input_plugin: ArrayString<64>,
+    /// Name of the RSP plugin used when recording, directly from the plugin.
     pub rsp_plugin: ArrayString<64>,
+    /// Author of the TAS.
     pub author: ArrayString<222>,
+    /// Description of the TAS.
     pub description: ArrayString<256>,
 
+    /// The input samples.
     pub inputs: Vec<Input>,
 }
 
 impl M64 {
+    /// Creates an instance of `M64` from an array of bytes.
     pub fn from_u8_array(data: &[u8]) -> Result<Self, M64ParseError> {
         // defining parsers
         let signature = tag::<_, _, nom::error::Error<_>>([0x4D, 0x36, 0x34, 0x1A]);
@@ -261,6 +281,7 @@ impl M64 {
         })
     }
 
+    /// Creates an instance of `M64` from a given reader.
     pub fn read_m64<R>(mut reader: R) -> Result<Self, M64ParseError>
     where
         R: Read,
@@ -270,6 +291,7 @@ impl M64 {
         Self::from_u8_array(&data)
     }
 
+    /// Writes the `M64` instance to a given writer.
     pub fn write_m64<W>(&self, writer: &mut W) -> io::Result<()>
     where
         W: Write,
@@ -329,33 +351,48 @@ impl M64 {
         Ok(())
     }
 
+    /// Returns the recording time of the movie in unix epoch format, from the M64 uid.
     pub fn recording_time(&self) -> LocalResult<DateTime<Utc>> {
         Utc.timestamp_opt(self.uid as i64, 0)
     }
 }
 
+/// All possible M64 parsing errors.
 #[derive(Debug, Error)]
 pub enum M64ParseError {
+    /// File signature didn't match.
     #[error("Invalid file signature, expected `[4D 36 34 1A]`, got `{0:X?}`")]
     InvalidFileSignature([u8; 4]),
+    /// File version number wasn't 3.
     #[error("Invalid version, expected `3`, got `{0}`")]
     InvalidVersion(u32),
+    /// Reserved bytes weren't zero.
     #[error("Reserved data is not all zero")]
     ReservedNotZero,
+    /// There wasn't enough data to read.
+    /// The expected amount of data is given in the `expected` field, and the actual amount of data is given in the `actual` field.
     #[error("Data input too small, expected {expected} bytes, got {actual} bytes")]
     NotEnoughData { expected: usize, actual: usize },
+    /// Invalid movie start type.
     #[error("Invalid movie start type")]
     InvalidMovieStartType,
+    /// Invalid UTF-8 string.
     #[error("Invalid UTF-8 string")]
     InvalidString,
+    /// Io error.
     #[error(transparent)]
     Io(#[from] io::Error),
 }
 
+/// All possible movie start types.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, FromRepr)]
 pub enum MovieStartType {
+    /// Movie begins from snapshot.
+    /// - The snapshot will be loaded from an external file with the movie filename with the `st` extension.
     SnapShot = 1,
+    /// Movie begins from power on.
     PowerOn = 2,
+    /// Movie begins from EEPROM.
     Eeprom = 4,
 }
 
@@ -367,6 +404,7 @@ impl TryFrom<u16> for MovieStartType {
     }
 }
 
+/// Error for attempting to parse an invalid movie start type.
 #[derive(Debug, Error)]
 #[error("Invalid movie start type: {0}")]
 pub struct InvalidMovieStartType(u16);

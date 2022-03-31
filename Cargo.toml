@@ -13,6 +13,7 @@ categories = ["parsing"]
 
 [dependencies]
 nom = "7.1.1"
+nom_locate = "4.0.0"
 arrayvec = "0.7.2"
 thiserror = "1.0.30"
 strum = "0.24"

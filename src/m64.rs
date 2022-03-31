@@ -14,10 +14,13 @@ use nom::{
     sequence::tuple,
     Finish,
 };
+use nom_locate::LocatedSpan;
 use strum_macros::FromRepr;
 use thiserror::Error;
 
 use crate::controller::{Flags, Input};
+
+type Span<'a> = LocatedSpan<&'a [u8]>;
 
 /// The M64 file.
 /// Follows the format described in [this document](https://tasvideos.org/EmulatorResources/Mupen/M64).
@@ -66,14 +69,20 @@ pub struct M64 {
 impl M64 {
     /// Creates an instance of `M64` from an array of bytes.
     pub fn from_u8_array(data: &[u8]) -> Result<Self, M64ParseError> {
+        let data = Span::new(data);
+
         // defining parsers
         let signature = tag::<_, _, nom::error::Error<_>>([0x4D, 0x36, 0x34, 0x1A]);
         let movie_start_type = map_opt(le_u16, |value| MovieStartType::from_repr(value as usize));
         let controller_flags = map_opt(le_u32, |b| Some(Flags::from_u32(b)));
-        let array_string = |n: usize| map_res(take(n), std::str::from_utf8);
+        let array_string = |n: usize| {
+            map_res::<_, _, _, nom::error::Error<_>, _, _, _>(take(n), |s: Span| {
+                std::str::from_utf8(s.fragment())
+            })
+        };
         let array_string_64 = || {
-            map_res::<_, _, _, _, Utf8Error, _, _>(take(64usize), |s: &[u8]| {
-                let s = std::str::from_utf8(s)?;
+            map_res::<_, _, _, nom::error::Error<_>, Utf8Error, _, _>(take(64usize), |s: Span| {
+                let s = std::str::from_utf8(s.fragment())?;
                 Ok(ArrayString::<64>::from(s).unwrap())
             })
         };
@@ -81,7 +90,7 @@ impl M64 {
             map_opt::<_, _, _, nom::error::Error<_>, _, _>(le_u32, |i: u32| Some(Input::from(i)));
         let version_verify = verify(le_u32, |version| *version == 3);
         let reserved_check =
-            |bytes: usize| verify(take(bytes), |v: &[u8]| v.iter().all(|&b| b == 0));
+            |bytes: usize| verify(take(bytes), |v: &Span| v.iter().all(|&b| b == 0));
 
         // header data size check
         if data.len() < 0x400 {
@@ -93,78 +102,84 @@ impl M64 {
             return Err(M64ParseError::InputNot4BytesAligned(data.len() % 4));
         }
 
-        // header data
-        let (data, _) = signature(data).finish().map_err(|err| {
-            M64ParseError::InvalidFileSignature(err.input[..4].try_into().unwrap())
-        })?;
-
-        let (data, (_, uid, vi_frames, rerecords, fps, controller_count)) =
-            tuple((version_verify, le_u32, le_u32, le_u32, u8, u8))(data)
-                .finish()
-                .map_err(|err: nom::error::Error<&[u8]>| {
-                    let input = u32::from_le_bytes(err.input[..4].try_into().unwrap());
-                    M64ParseError::InvalidVersion(input)
-                })?;
-
-        let (data, _) = reserved_check(2)(data)
-            .map_err(|_: nom::Err<nom::error::Error<_>>| M64ParseError::ReservedNotZero)?;
-
-        let (data, (input_frames, movie_start_type)) = tuple((le_u32, movie_start_type))(data)
-            .finish()
-            .map_err(|_: nom::error::Error<_>| M64ParseError::InvalidMovieStartType)?;
-
-        let (data, (_, controller_flags, _)) =
-            tuple((reserved_check(2), controller_flags, reserved_check(160)))(data)
-                .finish()
-                .map_err(|err| match err.code {
-                    nom::error::ErrorKind::Verify => M64ParseError::ReservedNotZero,
-                    _ => unimplemented!(),
-                })?;
-
-        // getting rom data
-        let (data, (rom_internal_name, rom_crc_32, rom_country_code, _)) = tuple((
+        let (
+            data,
+            (
+                _,
+                _,
+                uid,
+                vi_frames,
+                rerecords,
+                fps,
+                controller_count,
+                _,
+                input_frames,
+                movie_start_type,
+                _,
+                controller_flags,
+                _,
+                rom_internal_name,
+                rom_crc_32,
+                rom_country_code,
+                _,
+                video_plugin,
+                sound_plugin,
+                input_plugin,
+                rsp_plugin,
+                // author,
+                // description,
+            ),
+        ) = tuple((
+            signature,
+            version_verify,
+            le_u32,
+            le_u32,
+            le_u32,
+            u8,
+            u8,
+            reserved_check(2),
+            le_u32,
+            movie_start_type,
+            reserved_check(2),
+            controller_flags,
+            reserved_check(160),
             map(array_string(32), |s| ArrayString::<32>::from(s).unwrap()),
             le_u32,
             le_u16,
             reserved_check(56),
-        ))(data)
-        .finish()
-        .map_err(|err| match err.code {
-            nom::error::ErrorKind::MapRes => M64ParseError::InvalidString,
-            nom::error::ErrorKind::Verify => M64ParseError::ReservedNotZero,
-            _ => unimplemented!(),
-        })?;
-
-        // getting emulator data
-        let (data, (video_plugin, sound_plugin, input_plugin, rsp_plugin)) = tuple((
             array_string_64(),
             array_string_64(),
             array_string_64(),
             array_string_64(),
         ))(data)
         .finish()
-        .map_err(|err: nom::error::Error<_>| match err.code {
-            nom::error::ErrorKind::MapRes => M64ParseError::InvalidString,
-            _ => unimplemented!(),
+        .map_err(|err| match err.input.location_offset() {
+            0x0 => {
+                M64ParseError::InvalidFileSignature(err.input.fragment()[..4].try_into().unwrap())
+            }
+            0x4 => M64ParseError::InvalidVersion(u32::from_le_bytes(
+                err.input.fragment()[..4].try_into().unwrap(),
+            )),
+            0x16 | 0x1E | 0x24 | 0xEA => {
+                M64ParseError::ReservedNotZero(err.input.location_offset())
+            }
+            0x1C => M64ParseError::InvalidMovieStartType,
+            0xC4 | 0x122 | 0x162 | 0x1A2 | 0x1E2 | 0x222 | 0x300 => {
+                M64ParseError::InvalidString(err.input.location_offset())
+            }
+            _ => unimplemented!("{:?}", err),
         })?;
 
-        let (data, author) = map(array_string(222), |s| ArrayString::<222>::from(s).unwrap())(data)
-            .finish()
-            .map_err(|err| match err.code {
-                nom::error::ErrorKind::MapRes => M64ParseError::InvalidString,
-                _ => unimplemented!(),
-            })?;
-
-        let (data, description) =
-            map(array_string(256), |s| ArrayString::<256>::from(s).unwrap())(data)
-                .finish()
-                .map_err(|err| match err.code {
-                    nom::error::ErrorKind::MapRes => M64ParseError::InvalidString,
-                    _ => unimplemented!(),
-                })?;
+        // TAS author info
+        let (data, (author, description)) = tuple((
+            map(array_string(222), |s| ArrayString::<222>::from(s).unwrap()),
+            map(array_string(256), |s| ArrayString::<256>::from(s).unwrap()),
+        ))(data)
+        .finish()
+        .map_err(|err| M64ParseError::InvalidString(err.input.location_offset()))?;
 
         // getting input data
-        let (_, inputs): (&[u8], _) = many0(input)(data).unwrap();
+        let (_, inputs): (_, _) = many0(input)(data).unwrap();
 
         Ok(M64 {
             uid,
@@ -274,8 +289,8 @@ pub enum M64ParseError {
     #[error("Invalid version, expected `3`, got `{0}`")]
     InvalidVersion(u32),
     /// Reserved bytes weren't zero.
-    #[error("Reserved data is not all zero")]
-    ReservedNotZero,
+    #[error("Reserved data is not all zero at offset 0x{0:X?}")]
+    ReservedNotZero(usize),
     /// The header data was smaller than 1024 bytes.
     #[error("Not enough header data, expected 1024 bytes, got {0} bytes")]
     NotEnoughHeaderData(usize),
@@ -286,8 +301,8 @@ pub enum M64ParseError {
     #[error("Invalid movie start type")]
     InvalidMovieStartType,
     /// Invalid UTF-8 string.
-    #[error("Invalid UTF-8 string")]
-    InvalidString,
+    #[error("Invalid UTF-8 string at offset 0x{0:X?}")]
+    InvalidString(usize),
     /// Io error.
     #[error(transparent)]
     Io(#[from] io::Error),

@@ -106,7 +106,7 @@ fn invalid_reserved() {
     let m64 = M64::from_u8_array(&file);
     assert_eq!(
         format!("{}", m64.unwrap_err()),
-        "Reserved data is not all zero"
+        "Reserved data is not all zero at offset 0x16"
     );
 }
 
@@ -121,7 +121,10 @@ fn invalid_movie_start_type() {
 fn invalid_utf8() {
     let file = include_bytes!("./m64s/invalid_utf8.m64").to_vec();
     let m64 = M64::from_u8_array(&file);
-    assert_eq!(format!("{}", m64.unwrap_err()), "Invalid UTF-8 string");
+    assert_eq!(
+        format!("{}", m64.unwrap_err()),
+        "Invalid UTF-8 string at offset 0xC4"
+    );
 }
 
 #[test]

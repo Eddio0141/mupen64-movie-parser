@@ -61,6 +61,16 @@ fn invalid_signature() {
 }
 
 #[test]
+fn invalid_signature_2() {
+    let file = include_bytes!("./m64s/invalid_signature_2.m64").to_vec();
+    let m64 = M64::from_u8_array(&file);
+    assert_eq!(
+        format!("{}", m64.unwrap_err()),
+        "Invalid file signature, expected `[4D 36 34 1A]`, got `[4D, FF, FF, FF]`"
+    );
+}
+
+#[test]
 fn empty_file() {
     let file = Vec::new();
     let m64 = M64::from_u8_array(&file);

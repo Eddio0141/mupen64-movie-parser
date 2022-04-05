@@ -1,6 +1,6 @@
 [package]
 name = "mupen64-movie-parser"
-version = "1.0.1"
+version = "2.0.0"
 authors = ["yuu0141 <eddio0141@gmail.com>"]
 edition = "2021"
 description = "A parser for Mupen64-rerecording movie files"

@@ -1,26 +1,15 @@
 //! Contains the M64 struct and other types used for the M64 file.
-use std::{
-    io::{self, Read, Write},
-    str::Utf8Error,
-};
+use std::io::{self, Read, Write};
 
 use arrayvec::ArrayString;
 use chrono::{DateTime, LocalResult, TimeZone, Utc};
-use nom::{
-    bytes::complete::{tag, take},
-    combinator::{map, map_opt, map_res, verify},
-    multi::many0,
-    number::complete::{le_u16, le_u32, u8},
-    sequence::tuple,
-    Finish,
-};
-use nom_locate::LocatedSpan;
 use strum_macros::FromRepr;
 use thiserror::Error;
 
-use crate::controller::{Flags, Input};
-
-type Span<'a> = LocatedSpan<&'a [u8]>;
+use crate::{
+    controller::{Flags, Input},
+    parser,
+};
 
 /// The M64 file.
 /// Follows the format described in [this document](https://tasvideos.org/EmulatorResources/Mupen/M64).
@@ -69,138 +58,7 @@ pub struct M64 {
 impl M64 {
     /// Creates an instance of `M64` from an array of bytes.
     pub fn from_u8_array(data: &[u8]) -> Result<Self, M64ParseError> {
-        let data = Span::new(data);
-
-        // defining parsers
-        let signature = tag::<_, _, nom::error::Error<_>>([0x4D, 0x36, 0x34, 0x1A]);
-        let movie_start_type = map_opt(le_u16, |value| MovieStartType::from_repr(value as usize));
-        let controller_flags = map_opt(le_u32, |b| Some(Flags::from_u32(b)));
-        let array_string = |n: usize| {
-            map_res::<_, _, _, nom::error::Error<_>, _, _, _>(take(n), |s: Span| {
-                std::str::from_utf8(s.fragment())
-            })
-        };
-        let array_string_64 = || {
-            map_res::<_, _, _, nom::error::Error<_>, Utf8Error, _, _>(take(64usize), |s: Span| {
-                let s = std::str::from_utf8(s.fragment())?;
-                Ok(ArrayString::<64>::from(s).unwrap())
-            })
-        };
-        let input =
-            map_opt::<_, _, _, nom::error::Error<_>, _, _>(le_u32, |i: u32| Some(Input::from(i)));
-        let version_verify = verify(le_u32, |version| *version == 3);
-        let reserved_check =
-            |bytes: usize| verify(take(bytes), |v: &Span| v.iter().all(|&b| b == 0));
-
-        // header data size check
-        if data.len() < 0x400 {
-            return Err(M64ParseError::NotEnoughHeaderData(data.len()));
-        }
-
-        // input data 4 bytes alignment check
-        if data.len() % 4 != 0 {
-            return Err(M64ParseError::InputNot4BytesAligned(data.len() % 4));
-        }
-
-        let (
-            data,
-            (
-                _,
-                _,
-                uid,
-                vi_frames,
-                rerecords,
-                fps,
-                controller_count,
-                _,
-                input_frames,
-                movie_start_type,
-                _,
-                controller_flags,
-                _,
-                rom_internal_name,
-                rom_crc_32,
-                rom_country_code,
-                _,
-                video_plugin,
-                sound_plugin,
-                input_plugin,
-                rsp_plugin,
-                // author,
-                // description,
-            ),
-        ) = tuple((
-            signature,
-            version_verify,
-            le_u32,
-            le_u32,
-            le_u32,
-            u8,
-            u8,
-            reserved_check(2),
-            le_u32,
-            movie_start_type,
-            reserved_check(2),
-            controller_flags,
-            reserved_check(160),
-            map(array_string(32), |s| ArrayString::<32>::from(s).unwrap()),
-            le_u32,
-            le_u16,
-            reserved_check(56),
-            array_string_64(),
-            array_string_64(),
-            array_string_64(),
-            array_string_64(),
-        ))(data)
-        .finish()
-        .map_err(|err| match err.input.location_offset() {
-            0x0 => {
-                M64ParseError::InvalidFileSignature(err.input.fragment()[..4].try_into().unwrap())
-            }
-            0x4 => M64ParseError::InvalidVersion(u32::from_le_bytes(
-                err.input.fragment()[..4].try_into().unwrap(),
-            )),
-            0x16 | 0x1E | 0x24 | 0xEA => {
-                M64ParseError::ReservedNotZero(err.input.location_offset())
-            }
-            0x1C => M64ParseError::InvalidMovieStartType,
-            0xC4 | 0x122 | 0x162 | 0x1A2 | 0x1E2 | 0x222 | 0x300 => {
-                M64ParseError::InvalidString(err.input.location_offset())
-            }
-            _ => unimplemented!("{:?}", err),
-        })?;
-
-        // TAS author info
-        let (data, (author, description)) = tuple((
-            map(array_string(222), |s| ArrayString::<222>::from(s).unwrap()),
-            map(array_string(256), |s| ArrayString::<256>::from(s).unwrap()),
-        ))(data)
-        .finish()
-        .map_err(|err| M64ParseError::InvalidString(err.input.location_offset()))?;
-
-        // getting input data
-        let (_, inputs): (_, _) = many0(input)(data).unwrap();
-
-        Ok(M64 {
-            uid,
-            vi_frames,
-            rerecords,
-            fps,
-            controller_count,
-            input_frames,
-            movie_start_type,
-            controller_flags,
-            rom_internal_name,
-            rom_crc_32,
-            rom_country_code,
-            video_plugin,
-            sound_plugin,
-            input_plugin,
-            rsp_plugin,
-            author,
-            description,
-            inputs,
-        })
+        Ok(parser::m64_from_u8(data).unwrap().1)
     }
 
     /// Creates an instance of `M64` from a given reader.

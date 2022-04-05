@@ -16,6 +16,7 @@
 //! ```
 pub mod controller;
 pub mod m64;
+mod parser;
 #[cfg(test)]
 mod tests;
 

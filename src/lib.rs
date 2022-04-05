@@ -15,6 +15,7 @@
 //! assert_eq!(m64.vi_frames, 290491);
 //! ```
 pub mod controller;
+pub mod error;
 pub mod m64;
 mod parser;
 #[cfg(test)]

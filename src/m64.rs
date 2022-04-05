@@ -3,11 +3,12 @@ use std::io::{self, Read, Write};
 
 use arrayvec::ArrayString;
 use chrono::{DateTime, LocalResult, TimeZone, Utc};
+use nom::{error::VerboseErrorKind, Finish};
 use strum_macros::FromRepr;
-use thiserror::Error;
 
 use crate::{
     controller::{Flags, Input},
+    error::*,
     parser,
 };
 
@@ -58,7 +59,176 @@ pub struct M64 {
 impl M64 {
     /// Creates an instance of `M64` from an array of bytes.
     pub fn from_u8_array(data: &[u8]) -> Result<Self, M64ParseError> {
-        Ok(parser::m64_from_u8(data).unwrap().1)
+        let parse_result = parser::m64_from_u8(data).finish();
+
+        match parse_result {
+            Ok(parse_result) => Ok(parse_result.1),
+            Err(err) => {
+                let mut context = None;
+                let mut nom = None;
+                // at least 1 error will exist
+                let input = err.errors.first().unwrap().0;
+
+                for err in &err.errors {
+                    match &err.1 {
+                        VerboseErrorKind::Context(c) => context = Some(c),
+                        VerboseErrorKind::Char(ch) => {
+                            unimplemented!("VerboseErrorKind::Char({}) is not handled", ch)
+                        }
+                        VerboseErrorKind::Nom(n) => nom = Some(n),
+                    }
+                }
+
+                let nom = nom.unwrap();
+
+                match context {
+                    Some(context) => match *context {
+                        "signature" => {
+                            let input = if input.len() >= 4 {
+                                input[0..4].to_owned()
+                            } else {
+                                input.to_owned()
+                            };
+                            Err(M64ParseError::InvalidSignature(input))
+                        }
+                        "version" => {
+                            if let nom::error::ErrorKind::Eof = nom {
+                                Err(M64ParseError::NotEnoughBytes {
+                                    field: FieldName::Version,
+                                    requires: 4 - input.len(),
+                                })
+                            } else {
+                                let input = u32::from_le_bytes(input[0..4].try_into().unwrap());
+                                Err(M64ParseError::InvalidVersion(input))
+                            }
+                        }
+                        "uid" => Err(M64ParseError::NotEnoughBytes {
+                            field: FieldName::Uid,
+                            requires: 4 - input.len(),
+                        }),
+                        "vi_frames" => Err(M64ParseError::NotEnoughBytes {
+                            field: FieldName::ViFrames,
+                            requires: 4 - input.len(),
+                        }),
+                        "input_frames" => Err(M64ParseError::NotEnoughBytes {
+                            field: FieldName::InputFrames,
+                            requires: 4 - input.len(),
+                        }),
+                        "rerecords" => Err(M64ParseError::NotEnoughBytes {
+                            field: FieldName::Rerecords,
+                            requires: 4 - input.len(),
+                        }),
+                        "fps" => Err(M64ParseError::NotEnoughBytes {
+                            field: FieldName::Fps,
+                            requires: 1,
+                        }),
+                        "controller_count" => Err(M64ParseError::NotEnoughBytes {
+                            field: FieldName::ControllerCount,
+                            requires: 1,
+                        }),
+                        "reserved_0x16" => Err(M64ParseError::ReservedNotZero(0x16)),
+                        "movie_start_type" => {
+                            if let nom::error::ErrorKind::Eof = nom {
+                                Err(M64ParseError::NotEnoughBytes {
+                                    field: FieldName::MovieStartType,
+                                    requires: 2 - input.len(),
+                                })
+                            } else {
+                                Err(M64ParseError::InvalidMovieStartType)
+                            }
+                        }
+                        "reserved_0x1E" => Err(M64ParseError::ReservedNotZero(0x1E)),
+                        "controller_flags" => Err(M64ParseError::NotEnoughBytes {
+                            field: FieldName::ControllerFlags,
+                            requires: 4 - input.len(),
+                        }),
+                        "reserved_0x24" => Err(M64ParseError::ReservedNotZero(0x24)),
+                        "rom_internal_name" => {
+                            if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::NotEnoughBytes {
+                                    field: FieldName::RomInternalName,
+                                    requires: 32 - input.len(),
+                                })
+                            } else {
+                                Err(M64ParseError::InvalidString(FieldName::RomInternalName))
+                            }
+                        }
+                        "rom_crc_32" => Err(M64ParseError::NotEnoughBytes {
+                            field: FieldName::RomCrc32,
+                            requires: 4 - input.len(),
+                        }),
+                        "rom_country_code" => Err(M64ParseError::NotEnoughBytes {
+                            field: FieldName::RomCountryCode,
+                            requires: 2 - input.len(),
+                        }),
+                        "reserved_0xEA" => Err(M64ParseError::ReservedNotZero(0xEA)),
+                        "video_plugin" => {
+                            if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::NotEnoughBytes {
+                                    field: FieldName::VideoPlugin,
+                                    requires: 64 - input.len(),
+                                })
+                            } else {
+                                Err(M64ParseError::InvalidString(FieldName::VideoPlugin))
+                            }
+                        }
+                        "sound_plugin" => {
+                            if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::NotEnoughBytes {
+                                    field: FieldName::SoundPlugin,
+                                    requires: 64 - input.len(),
+                                })
+                            } else {
+                                Err(M64ParseError::InvalidString(FieldName::SoundPlugin))
+                            }
+                        }
+                        "input_plugin" => {
+                            if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::NotEnoughBytes {
+                                    field: FieldName::InputPlugin,
+                                    requires: 64 - input.len(),
+                                })
+                            } else {
+                                Err(M64ParseError::InvalidString(FieldName::InputPlugin))
+                            }
+                        }
+                        "rsp_plugin" => {
+                            if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::NotEnoughBytes {
+                                    field: FieldName::RspPlugin,
+                                    requires: 64 - input.len(),
+                                })
+                            } else {
+                                Err(M64ParseError::InvalidString(FieldName::RspPlugin))
+                            }
+                        }
+                        "author" => {
+                            if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::NotEnoughBytes {
+                                    field: FieldName::Author,
+                                    requires: 222 - input.len(),
+                                })
+                            } else {
+                                Err(M64ParseError::InvalidString(FieldName::Author))
+                            }
+                        }
+                        "description" => {
+                            if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::NotEnoughBytes {
+                                    field: FieldName::Description,
+                                    requires: 256 - input.len(),
+                                })
+                            } else {
+                                Err(M64ParseError::InvalidString(FieldName::Description))
+                            }
+                        }
+                        "eof" => Err(M64ParseError::InputNot4BytesAligned(input.len())),
+                        _ => unimplemented!("context: {}\n{:?}", context, nom),
+                    },
+                    None => unimplemented!("No context found for m64 parser error"),
+                }
+            }
+        }
     }
 
     /// Creates an instance of `M64` from a given reader.
@@ -135,35 +305,6 @@ impl M64 {
     pub fn recording_time(&self) -> LocalResult<DateTime<Utc>> {
         Utc.timestamp_opt(self.uid as i64, 0)
     }
-}
-
-/// All possible M64 parsing errors.
-#[derive(Debug, Error)]
-pub enum M64ParseError {
-    /// File signature didn't match.
-    #[error("Invalid file signature, expected `[4D 36 34 1A]`, got `{0:X?}`")]
-    InvalidFileSignature([u8; 4]),
-    /// File version number wasn't 3.
-    #[error("Invalid version, expected `3`, got `{0}`")]
-    InvalidVersion(u32),
-    /// Reserved bytes weren't zero.
-    #[error("Reserved data is not all zero at offset 0x{0:X?}")]
-    ReservedNotZero(usize),
-    /// The header data was smaller than 1024 bytes.
-    #[error("Not enough header data, expected 1024 bytes, got {0} bytes")]
-    NotEnoughHeaderData(usize),
-    /// The input data wasn't 4 bytes aligned.
-    #[error("Input data is not 4 bytes aligned, final input data size is {0} bytes")]
-    InputNot4BytesAligned(usize),
-    /// Invalid movie start type.
-    #[error("Invalid movie start type")]
-    InvalidMovieStartType,
-    /// Invalid UTF-8 string.
-    #[error("Invalid UTF-8 string at offset 0x{0:X?}")]
-    InvalidString(usize),
-    /// Io error.
-    #[error(transparent)]
-    Io(#[from] io::Error),
 }
 
 /// All possible movie start types.

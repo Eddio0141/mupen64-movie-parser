@@ -2,6 +2,7 @@
 
 use std::io;
 
+use strum_macros::Display;
 use thiserror::Error;
 
 /// All possible M64 parsing errors.
@@ -18,9 +19,9 @@ pub enum M64ParseError {
     ReservedNotZero(usize),
     /// There was not enough bytes to make up for a field.
     #[error(
-        "Not enough bytes to read to make up for the {name} field, requires {requires} more bytes"
+        "Not enough bytes to read to make up for the {field} field, requires {requires} more bytes"
     )]
-    NotEnoughBytes { name: &'static str, requires: usize },
+    NotEnoughBytes { field: FieldName, requires: usize },
     /// The input data wasn't 4 bytes aligned.
     #[error("Input data is not 4 bytes aligned, final input data size is {0} bytes")]
     InputNot4BytesAligned(usize),
@@ -28,15 +29,32 @@ pub enum M64ParseError {
     #[error("Invalid movie start type")]
     InvalidMovieStartType,
     /// Invalid UTF-8 string.
-    #[error("Invalid UTF-8 string at offset 0x{0:X?}")]
-    InvalidString(usize),
+    #[error("Invalid UTF-8 string for field {0}")]
+    InvalidString(FieldName),
     /// Io error.
     #[error(transparent)]
     Io(#[from] io::Error),
 }
 
 /// M64 field names used for the error messages.
+#[derive(Debug, Display)]
 pub enum FieldName {
+    Version,
     Uid,
     ViFrames,
+    InputFrames,
+    Rerecords,
+    Fps,
+    ControllerCount,
+    MovieStartType,
+    ControllerFlags,
+    RomInternalName,
+    RomCrc32,
+    RomCountryCode,
+    VideoPlugin,
+    SoundPlugin,
+    InputPlugin,
+    RspPlugin,
+    Author,
+    Description,
 }

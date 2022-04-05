@@ -79,7 +79,7 @@ pub fn m64_from_u8(data: &[u8]) -> IResult<(), M64, VerboseError<&[u8]>> {
     ))(data)?;
 
     // getting input data
-    let (_, (inputs, _)) = tuple((context("inputs", many0(input)), context("eof", eof)))(data)?;
+    let (_, (inputs, _)) = tuple((many0(input), context("eof", eof)))(data)?;
 
     Ok((
         (),

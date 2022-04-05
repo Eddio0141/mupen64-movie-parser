@@ -22,3 +22,4 @@ mod parser;
 mod tests;
 
 pub use m64::M64;
+pub use controller::Input;

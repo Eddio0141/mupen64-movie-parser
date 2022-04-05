@@ -56,7 +56,7 @@ fn invalid_signature() {
     let m64 = M64::from_u8_array(&file);
     assert_eq!(
         format!("{}", m64.unwrap_err()),
-        "Invalid file signature, expected `[4D 36 34 1A]`, got `[FF, FF, FF, FF]`"
+        "Invalid file signature, expected [4D 36 34 1A], got [FF, FF, FF, FF]"
     );
 }
 
@@ -66,7 +66,7 @@ fn invalid_signature_2() {
     let m64 = M64::from_u8_array(&file);
     assert_eq!(
         format!("{}", m64.unwrap_err()),
-        "Invalid file signature, expected `[4D 36 34 1A]`, got `[4D, FF, FF, FF]`"
+        "Invalid file signature, expected [4D 36 34 1A], got [4D, 36, 34]"
     );
 }
 
@@ -76,7 +76,7 @@ fn empty_file() {
     let m64 = M64::from_u8_array(&file);
     assert_eq!(
         format!("{}", m64.unwrap_err()),
-        "Not enough header data, expected 1024 bytes, got 0 bytes"
+        "Invalid file signature, expected [4D 36 34 1A], got []"
     );
 }
 
@@ -86,7 +86,7 @@ fn not_enough_data() {
     let m64 = M64::from_u8_array(&file);
     assert_eq!(
         format!("{}", m64.unwrap_err()),
-        "Not enough header data, expected 1024 bytes, got 6 bytes"
+        "Not enough bytes to read to make up for the Version field, requires 2 more bytes"
     );
 }
 
@@ -96,7 +96,17 @@ fn wrong_version() {
     let m64 = M64::from_u8_array(&file);
     assert_eq!(
         format!("{}", m64.unwrap_err()),
-        "Invalid version, expected `3`, got `4`"
+        "Invalid version, expected 3, got 4"
+    );
+}
+
+#[test]
+fn wrong_version_not_enough_data() {
+    let file = include_bytes!("./m64s/wrong_version_not_enough_data.m64").to_vec();
+    let m64 = M64::from_u8_array(&file);
+    assert_eq!(
+        format!("{}", m64.unwrap_err()),
+        "Not enough bytes to read to make up for the Version field, requires 3 more bytes"
     );
 }
 
@@ -123,7 +133,7 @@ fn invalid_utf8() {
     let m64 = M64::from_u8_array(&file);
     assert_eq!(
         format!("{}", m64.unwrap_err()),
-        "Invalid UTF-8 string at offset 0xC4"
+        "Invalid UTF-8 string for field RomInternalName"
     );
 }
 

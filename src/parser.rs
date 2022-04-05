@@ -8,12 +8,12 @@ use crate::{controller::*, m64::*};
 
 fn array_string<'a, const S: usize>(
 ) -> impl FnMut(&'a [u8]) -> IResult<&'a [u8], ArrayString<S>, VerboseError<&'a [u8]>> {
-    let utf8_parse = map_res(take(S), |s| std::str::from_utf8(s));
+    let utf8_parse = map_res(take(S), std::str::from_utf8);
 
     map(utf8_parse, |s| ArrayString::<S>::from(s).unwrap())
 }
 
-pub fn m64_from_u8<'a>(data: &'a [u8]) -> IResult<(), M64, VerboseError<&'a [u8]>> {
+pub fn m64_from_u8(data: &[u8]) -> IResult<(), M64, VerboseError<&[u8]>> {
     // defining parsers
     let signature = tag([0x4D, 0x36, 0x34, 0x1A]);
     let movie_start_type = map_opt(le_u16, |value| MovieStartType::from_repr(value as usize));

@@ -145,12 +145,12 @@ impl M64 {
                         "reserved_0x24" => Err(M64ParseError::ReservedNotZero(0x24)),
                         "rom_internal_name" => {
                             if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::InvalidString(FieldName::RomInternalName))
+                            } else {
                                 Err(M64ParseError::NotEnoughBytes {
                                     field: FieldName::RomInternalName,
                                     requires: 32 - input.len(),
                                 })
-                            } else {
-                                Err(M64ParseError::InvalidString(FieldName::RomInternalName))
                             }
                         }
                         "rom_crc_32" => Err(M64ParseError::NotEnoughBytes {
@@ -164,62 +164,62 @@ impl M64 {
                         "reserved_0xEA" => Err(M64ParseError::ReservedNotZero(0xEA)),
                         "video_plugin" => {
                             if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::InvalidString(FieldName::VideoPlugin))
+                            } else {
                                 Err(M64ParseError::NotEnoughBytes {
                                     field: FieldName::VideoPlugin,
                                     requires: 64 - input.len(),
                                 })
-                            } else {
-                                Err(M64ParseError::InvalidString(FieldName::VideoPlugin))
                             }
                         }
                         "sound_plugin" => {
                             if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::InvalidString(FieldName::SoundPlugin))
+                            } else {
                                 Err(M64ParseError::NotEnoughBytes {
                                     field: FieldName::SoundPlugin,
                                     requires: 64 - input.len(),
                                 })
-                            } else {
-                                Err(M64ParseError::InvalidString(FieldName::SoundPlugin))
                             }
                         }
                         "input_plugin" => {
                             if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::InvalidString(FieldName::InputPlugin))
+                            } else {
                                 Err(M64ParseError::NotEnoughBytes {
                                     field: FieldName::InputPlugin,
                                     requires: 64 - input.len(),
                                 })
-                            } else {
-                                Err(M64ParseError::InvalidString(FieldName::InputPlugin))
                             }
                         }
                         "rsp_plugin" => {
                             if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::InvalidString(FieldName::RspPlugin))
+                            } else {
                                 Err(M64ParseError::NotEnoughBytes {
                                     field: FieldName::RspPlugin,
                                     requires: 64 - input.len(),
                                 })
-                            } else {
-                                Err(M64ParseError::InvalidString(FieldName::RspPlugin))
                             }
                         }
                         "author" => {
                             if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::InvalidString(FieldName::Author))
+                            } else {
                                 Err(M64ParseError::NotEnoughBytes {
                                     field: FieldName::Author,
                                     requires: 222 - input.len(),
                                 })
-                            } else {
-                                Err(M64ParseError::InvalidString(FieldName::Author))
                             }
                         }
                         "description" => {
                             if let nom::error::ErrorKind::MapRes = nom {
+                                Err(M64ParseError::InvalidString(FieldName::Description))
+                            } else {
                                 Err(M64ParseError::NotEnoughBytes {
                                     field: FieldName::Description,
                                     requires: 256 - input.len(),
                                 })
-                            } else {
-                                Err(M64ParseError::InvalidString(FieldName::Description))
                             }
                         }
                         "eof" => Err(M64ParseError::InputNot4BytesAligned(input.len())),
